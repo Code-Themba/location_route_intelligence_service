@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { getOrFetchLocation } from "./mapServices";
+import { getOrFetchLocation, getOrFetchRoutes } from "./mapServices";
 
 export async function getGeoCode(
   req: Request,
@@ -22,12 +22,9 @@ export async function getRoute(
 ) {
   try {
     const { origin, destination, mode } = req.query as Record<string, string>;
-    const result = await getOrFetchRoute(origin, destination, mode);
+    const result = await getOrFetchRoutes(origin, destination, mode);
     res.json(result);
   } catch (error) {
     next(error);
   }
-}
-function getOrFetchRoute(origin: string, destination: string, mode: string) {
-  throw new Error("Function not implemented.");
 }

@@ -8,18 +8,18 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-export const cachedLocations = pgTable("chached_locations", {
+export const cachedLocations = pgTable("cached_locations", {
   id: serial("id").primaryKey(),
   normalizedQuery: text("normalized_address").notNull().unique(),
   formattedAddress: text("formatted_address").notNull(),
-  latitude: text("latitude").notNull(),
-  longitude: text("longitude").notNull(),
+  latitude: doublePrecision("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
   placeId: text("place_id").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const cachedRoutes = pgTable(
-  "chached_routes",
+  "cached_routes",
   {
     id: serial("id").primaryKey(),
     originId: integer("origin_id")

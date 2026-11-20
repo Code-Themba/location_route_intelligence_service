@@ -1,18 +1,23 @@
-import { eq, and, or } from "drizzle-orm";
+import "dotenv/config";
+import { eq, and } from "drizzle-orm";
 import { db } from "../db";
 import { cachedLocations, cachedRoutes } from "../db/schema";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // Time to live in cache 7 days
+const TRAVEL_MODE_MAP: Record<string, string> = {
+  DRIVING: "DRIVE",
+  WALKING: "WALK",
+  BICYCLING: "BICYCLE",
+};
 
 export async function getOrFetchLocation(rawAddress: string) {
   const normalized = rawAddress.trim().toLowerCase();
-
   const [existing] = await db
     .select()
     .from(cachedLocations)
     .where(eq(cachedLocations.normalizedQuery, normalized));
-
+  console.log(existing);
   /*
     Check if the data is still in cache if it is get it from cached memory if not fire off a request to fetch it.
     */
@@ -56,6 +61,8 @@ export async function getOrFetchRoutes(
   destText: string,
   mode: string,
 ) {
+  const normalizedMode = mode.toUpperCase();
+  const googleTravelMode = TRAVEL_MODE_MAP[normalizedMode] || "DRIVE";
   const origin = await getOrFetchLocation(originText);
   const destination = await getOrFetchLocation(destText);
 
@@ -74,11 +81,11 @@ export async function getOrFetchRoutes(
     Date.now() - existingRoute.updatedAt.getTime() < CACHE_TTL_MS
   ) {
     return {
-      source: "",
+      source: "cache",
       origin: origin.data.formattedAddress,
       destination: destination.data.formattedAddress,
-      distanceInMeters: existingRoute.distanceInMeters,
-      durationInSeconds: existingRoute.durationInSeconds,
+      distanceMeters: existingRoute.distanceInMeters,
+      durationSeconds: existingRoute.durationInSeconds,
     };
   }
 
@@ -89,33 +96,39 @@ export async function getOrFetchRoutes(
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": GOOGLE_API_KEY,
-        "X-Goog-FieldMask": "routes.duration.routes.distanceInMeters",
+        "X-Goog-FieldMask": "routes.duration,routes.distanceMeters",
       },
       body: JSON.stringify({
-        origin: {
-          location: {
-            latLng: {
-              latitude: origin.data.latitude,
-              longitude: origin.data.longitude,
+        origin: origin.data.placeId
+          ? { placeId: origin.data.placeId }
+          : {
+              location: {
+                latLng: {
+                  latitude: origin.data.latitude,
+                  longitude: origin.data.longitude,
+                },
+              },
             },
-          },
-        },
-        destination: {
-          location: {
-            latLng: {
-              latitude: destination.data.latitude,
-              longitude: destination.data.longitude,
+        destination: destination.data.placeId
+          ? { placeId: destination.data.placeId }
+          : {
+              location: {
+                latLng: {
+                  latitude: destination.data.latitude,
+                  longitude: destination.data.longitude,
+                },
+              },
             },
-          },
-        },
-        travelMode: mode === "DRIVING" ? "DRIVE" : mode,
+        travelMode: googleTravelMode,
       }),
     },
   );
 
   const routeData = await routeRes.json();
+  console.log(routeData);
   const route = routeData.routes?.[0];
   if (!route) {
+    console.error("Empty Routes Response:", JSON.stringify(routeData, null, 2));
     throw new Error("No route found between locations");
   }
 
@@ -127,7 +140,7 @@ export async function getOrFetchRoutes(
       originId: origin.data.id,
       destinationId: destination.data.id,
       travelMode: mode,
-      distanceInMeters: route.distanceInMeters,
+      distanceInMeters: route.distanceMeters,
       durationInSeconds,
       updatedAt: new Date(),
     })
@@ -137,7 +150,7 @@ export async function getOrFetchRoutes(
     source: "google_api",
     origin: origin.data.formattedAddress,
     destination: destination.data.formattedAddress,
-    distanceInMeters: route.distanceInMeters,
+    distanceInMeters: route.distanceMeters,
     durationInSeconds,
   };
 }

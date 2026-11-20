@@ -21,5 +21,5 @@ export const geocodeSchema = z.object({
 export const routeSchema = z.object({
   origin: z.string().min(3),
   destination: z.string().min(3),
-  mode: z.enum(["DRIVING", "WALKING", "BICYCLING"]).default("DRIVING"),
+  mode: z.enum(["DRIVE", "WALK", "BIKE"]).default("DRIVE"),
 });
